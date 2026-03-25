@@ -153,7 +153,7 @@ let drag=null,zones=[],players=[],ball={x:W/2,y:H/2};
 let zdraw=false,zst=null,pp=[];
 let ep=null,lcp=null,lct=0,mdp=null,dd=false,mdt=0;
 let fmt='4v4';
-let recTarget=null,recording=false,recStart=0,recTimer=null,curPts=[];
+let recTarget=null,recording=false,recStart=0,recTimer=null,curPts=[],recMouseDown=false;
 let tracks=[];
 let playing=false,playFrame=null,playStart=0;
 
@@ -244,7 +244,16 @@ function draw(mx,my){
   zones.forEach(z=>drawZone(z,false));
   if(zdraw&&zt&&zst&&mx!==undefined){
     if(zt==='rect'||zt==='ellipse')drawZone({type:zt,ci:zci,x1:zst.x,y1:zst.y,x2:mx,y2:my},true);
-    else if(zt==='poly'&&pp.length>0)drawZone({type:'poly',ci:zci,pts:[...pp,{x:mx,y:my}]},true);
+    else if(zt==='poly'&&pp.length>0){
+      drawZone({type:'poly',ci:zci,pts:[...pp,{x:mx,y:my}]},true);
+    }
+  }
+  // Show polygon dots even before enough points for a shape
+  if(zt==='poly'&&pp.length>0&&mx!==undefined){
+    const col=ZC[zci]||ZC[0];
+    ctx.save();ctx.fillStyle=h2r(col,.9);
+    pp.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();});
+    ctx.restore();
   }
   tracks.forEach(t=>drawTrailPts(t.pts,t.col));
   if(recording&&curPts.length>1)drawTrailPts(curPts,'#ff3333');
@@ -259,7 +268,8 @@ function draw(mx,my){
 // Recording
 function setRecTarget(t){
   recTarget=t;
-  document.getElementById('btn-rec').disabled=!t;
+  const btn=document.getElementById('btn-rec');
+  btn.disabled=!t;
   si(`Vald: ${t==='ball'?'Boll':t?.label} — tryck ● Spela in och dra spelaren på planen.`);
   draw();
 }
@@ -280,7 +290,7 @@ function startRec(){
 
 function stopRec(){
   if(!recording)return;
-  recording=false;clearInterval(recTimer);
+  recording=false;recMouseDown=false;clearInterval(recTimer);
   document.getElementById('btn-rec').textContent='● Spela in';document.getElementById('btn-rec').classList.remove('recording');
   document.getElementById('recbar').style.display='none';
   if(curPts.length>3){
@@ -350,7 +360,8 @@ cv.addEventListener('mousedown',e=>{
   const{x,y}=gxy(e);mdt=Date.now();dd=false;mdp=null;
   if(zt==='rect'||zt==='ellipse'){zdraw=true;zst={x,y};return;}
   if(zt==='poly'){pp.push({x,y});si(`${pp.length} punkt${pp.length>1?'er':''} — dubbelklicka för att avsluta.`);draw(x,y);return;}
-  if(recording)return;
+  // Start recording drag only on mousedown
+  if(recording&&recTarget){recMouseDown=true;return;}
   if(tool==='recsel'){const p=gp(x,y);if(p){setRecTarget(p);return;}if(nearBall(x,y)){setRecTarget('ball');return;}return;}
   if(tool==='label'){const p=gp(x,y);if(p)openLabel(p);return;}
   if(tool==='ball'){ball.x=x;ball.y=y;draw();return;}
@@ -359,7 +370,7 @@ cv.addEventListener('mousedown',e=>{
 
 cv.addEventListener('mousemove',e=>{
   const{x,y}=gxy(e);if(playing)return;
-  if(recording&&recTarget){
+  if(recording&&recTarget&&recMouseDown){
     const t=Date.now()-recStart;curPts.push({t,x,y});
     if(recTarget==='ball'){ball.x=x;ball.y=y;}else{recTarget.x=x;recTarget.y=y;}
     draw(x,y);return;
@@ -370,14 +381,15 @@ cv.addEventListener('mousemove',e=>{
 
 cv.addEventListener('mouseup',e=>{
   const{x,y}=gxy(e);if(playing)return;
+  // Stop recording on mouse release but keep recording=true (user presses ■ Stopp to finalize)
+  recMouseDown=false;
   if(zdraw&&(zt==='rect'||zt==='ellipse')){if(Math.abs(x-zst.x)>8&&Math.abs(y-zst.y)>8)zones.push({type:zt,ci:zci,x1:zst.x,y1:zst.y,x2:x,y2:y});zdraw=false;zst=null;draw();return;}
-  if(!dd&&tool==='select'&&mdp&&Date.now()-mdt<300){if(lcp===mdp&&Date.now()-lct<500){openLabel(mdp);lcp=null;}else{lcp=mdp;lct=Date.now();}}
   drag=null;mdp=null;
 });
 
 cv.addEventListener('dblclick',e=>{
   if(zt==='poly'&&pp.length>=3){zones.push({type:'poly',ci:zci,pts:[...pp]});pp=[];zdraw=false;si('Polygon sparad.');draw();return;}
-  if(tool==='select'){const{x,y}=gxy(e);const p=gp(x,y);if(p)openLabel(p);}
+  if(tool==='select'||tool==='recsel'){const{x,y}=gxy(e);const p=gp(x,y);if(p){openLabel(p);return;}}
 });
 
 cv.addEventListener('touchstart',e=>{e.preventDefault();cv.dispatchEvent(new MouseEvent('mousedown',{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}));},{passive:false});
@@ -448,16 +460,28 @@ async function openLoad(){
   document.getElementById('mcontent').innerHTML='<p class="mload">Hämtar...</p>';
   document.getElementById('mact').innerHTML=`<button onclick="closeModal()">Stäng</button>`;
   document.getElementById('modal').style.display='flex';
-  let saves=[];try{const r=await fetch(API);if(r.ok)saves=await r.json();}catch{}
+  let saves=[];
+  try{const r=await fetch(API);if(r.ok)saves=await r.json();}catch{}
+  // Neon rows: {id, name, format, data:{players,ball,zones,tracks,...}, created_at}
   const ls=JSON.parse(localStorage.getItem('ib')||'[]');
-  const all=[...saves.map(s=>({...s.data,...s,isCloud:true})),...ls.map(s=>({...s,isLocal:true}))].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const cloudItems=saves.map(s=>({
+    id:String(s.id),name:s.name||s.data?.name||'—',format:s.format||s.data?.format||'',
+    players:s.data?.players,ball:s.data?.ball,zones:s.data?.zones,tracks:s.data?.tracks,
+    ts:new Date(s.created_at).getTime()||0,isCloud:true
+  }));
+  const all=[...cloudItems,...ls.map(s=>({...s,isLocal:true}))].sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!all.length){document.getElementById('mcontent').innerHTML='<p class="mload">Inga sparade övningar ännu.</p>';return;}
   document.getElementById('mcontent').innerHTML=all.map(s=>`<div class="si"><span class="sn">${s.name||'—'}</span><span class="sm">${s.format||''} ${s.isCloud?'☁️':'💾'}</span><div class="sb"><button onclick='loadSnap(${JSON.stringify(s)})'>Ladda</button><button onclick='delSnap("${s.id||''}",${!!s.isLocal})'>Ta bort</button></div></div>`).join('');
 }
 function loadSnap(s){
-  if(typeof s==='string')s=JSON.parse(s);const d=s.data||s;
-  fmt=d.format||'4v4';players=d.players||mkP(fmt);ball=d.ball||{x:W/2,y:H/2};zones=d.zones||[];tracks=d.tracks||[];
-  document.getElementById('btn-play').disabled=!tracks.length;updateTrackList();closeModal();draw();toast(`✓ Laddade "${s.name||d.name}"`);
+  if(typeof s==='string')s=JSON.parse(s);
+  fmt=s.format||'4v4';
+  players=s.players||mkP(fmt);
+  ball=s.ball||{x:W/2,y:H/2};
+  zones=s.zones||[];
+  tracks=s.tracks||[];
+  document.getElementById('btn-play').disabled=!tracks.length;
+  updateTrackList();closeModal();draw();toast(`✓ Laddade "${s.name}"`);
 }
 async function delSnap(id,isLocal){
   if(isLocal){const ls=JSON.parse(localStorage.getItem('ib')||'[]').filter(s=>s.id!==id);localStorage.setItem('ib',JSON.stringify(ls));}
