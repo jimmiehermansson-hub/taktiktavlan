@@ -1,10 +1,472 @@
-[build]
-  functions = "netlify/functions"
-  publish = "."
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Innebandytaktik — Tränarverktyg</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#273548;--border:#334155;
+  --text:#f1f5f9;--text2:#94a3b8;--accent:#E3000F;--accent2:#ff4d57;
+  --radius:8px;--font:'DM Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column}
+#header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.logo{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:white;flex-shrink:0}
+#header h1{font-size:15px;font-weight:600}
+#header h1 span{font-weight:400;color:var(--text2);font-size:13px;margin-left:4px}
+#db-status{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:11px;color:var(--text2)}
+.dbdot{width:7px;height:7px;border-radius:50%;background:#eab308;flex-shrink:0;transition:background 0.3s}
+.dbdot.ok{background:#22c55e}.dbdot.err{background:#ef4444}
+#main{display:flex;flex-direction:column;gap:0;flex:1;padding:8px 12px 12px;max-width:860px;margin:0 auto;width:100%}
+.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:5px 0}
+.rl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.07em;margin-right:2px;white-space:nowrap;flex-shrink:0}
+button{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;transition:background 0.1s,border-color 0.1s;white-space:nowrap;user-select:none}
+button:hover{background:var(--surface2);border-color:#4a5568}
+button.active{background:var(--surface2);border-color:#64748b;font-weight:600}
+button:disabled{opacity:0.35;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:white;font-weight:600}
+button.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+button.rec{background:#7f1d1d;border-color:#991b1b;color:white}
+button.rec.recording{background:#E3000F;border-color:#ff0000;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.55}}
+.sep{width:1px;height:20px;background:var(--border);margin:0 2px;flex-shrink:0}
+.csep{display:inline-block;width:1px;height:14px;background:var(--border);margin:0 3px;vertical-align:middle}
+.cdot{width:17px;height:17px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;display:inline-block;vertical-align:middle;flex-shrink:0;transition:transform 0.1s}
+.cdot:hover{transform:scale(1.15)}.cdot.active{border-color:white}
+#recbar{display:none;align-items:center;gap:8px;padding:6px 12px;background:#200a0a;border-radius:var(--radius);border:1px solid #7f1d1d;font-size:12px;margin-bottom:2px}
+.recdot{width:8px;height:8px;border-radius:50%;background:#E3000F;animation:blink 1s infinite;flex-shrink:0}
+#recsubj{font-weight:600;color:#fca5a5}
+#rectime{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--text2)}
+#playbar{display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);font-size:12px;margin-bottom:2px}
+#pbwrap{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+#pbfill{height:100%;background:var(--accent);width:0%}
+#ptime,#ptotal{font-variant-numeric:tabular-nums;color:var(--text2);font-size:11px}
+#tracklist{display:none;flex-direction:column;gap:3px;padding:3px 0}
+.ti{display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--surface2);border-radius:6px;font-size:12px;border:1px solid var(--border)}
+.tdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.tlbl{flex:1}.tdur{color:var(--text2);font-size:11px}
+.tdel{padding:2px 6px;font-size:11px}
+#info{font-size:12px;color:var(--text2);min-height:16px;padding:2px 0 3px}
+#cw{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+canvas{display:block;width:100%;cursor:crosshair}
+#ledit{display:none;position:absolute;background:var(--surface);border:1.5px solid #64748b;border-radius:var(--radius);padding:4px 8px;z-index:20}
+#ledit input{border:none;outline:none;font-size:13px;font-weight:600;width:68px;background:transparent;color:var(--text);text-align:center;font-family:var(--font)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.95);color:var(--text);padding:7px 16px;border-radius:20px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap;z-index:100;border:1px solid var(--border)}
+#modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);align-items:center;justify-content:center;z-index:50;padding:16px}
+#mbox{background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:380px;border:1px solid var(--border)}
+#mbox h3{font-size:15px;font-weight:600;margin-bottom:14px}
+#mbox input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;font-size:14px;color:var(--text);font-family:var(--font);outline:none;margin-bottom:10px}
+#mbox input:focus{border-color:#64748b}
+#mact{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+#mcontent{max-height:320px;overflow-y:auto}
+.si{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;margin-bottom:6px;gap:8px}
+.sn{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm{font-size:11px;color:var(--text2);white-space:nowrap}
+.sb{display:flex;gap:5px;flex-shrink:0}
+.sb button{font-size:11px;padding:3px 8px}
+.mload{color:var(--text2);font-size:13px;padding:8px 0}
+</style>
+</head>
+<body>
+<div id="header">
+  <div class="logo">IB</div>
+  <h1>Innebandytaktik <span>— Tränarverktyg</span></h1>
+  <div id="db-status"><div class="dbdot" id="dbdot"></div><span id="dblbl">Ansluter...</span></div>
+</div>
+<div id="main">
+  <div class="row">
+    <span class="rl">Spelform</span>
+    <button onclick="setFormat('1v0')">1v0</button>
+    <button onclick="setFormat('2v1')">2v1</button>
+    <button onclick="setFormat('3v2')">3v2</button>
+    <button onclick="setFormat('3v3')">3v3</button>
+    <button class="active" onclick="setFormat('4v4')">4v4</button>
+    <button onclick="setFormat('5v5')">5v5</button>
+    <button onclick="setFormat('5v4')">5v4</button>
+  </div>
+  <div class="row">
+    <span class="rl">Placera</span>
+    <button class="active" id="btn-select" onclick="setTool('select')">✥ Flytta</button>
+    <button id="btn-ball" onclick="setTool('ball')">● Boll</button>
+    <button id="btn-label" onclick="setTool('label')">✎ Namn</button>
+    <div class="sep"></div>
+    <button onclick="resetAll()">Återställ</button>
+  </div>
+  <div class="row">
+    <span class="rl">Spela in</span>
+    <button id="btn-recsel" onclick="setTool('recsel')">Välj spelare</button>
+    <button id="btn-rec" class="rec" onclick="toggleRec()" disabled>● Spela in</button>
+    <div class="sep"></div>
+    <button id="btn-play" onclick="startPlayback()" disabled>▶ Spela upp</button>
+    <button id="btn-stopplay" onclick="stopPlayback()" style="display:none">■ Stopp</button>
+    <div class="sep"></div>
+    <button onclick="clearTracks()">Rensa inspelningar</button>
+  </div>
+  <div class="row">
+    <span class="rl">Zon</span>
+    <button id="btn-rect" onclick="setZoneTool('rect')">Rektangel</button>
+    <button id="btn-ellipse" onclick="setZoneTool('ellipse')">Ellips</button>
+    <button id="btn-poly" onclick="setZoneTool('poly')">Polygon</button>
+    <div class="csep"></div>
+    <div class="cdot active" id="cd-0" style="background:#3b82f6" onclick="setZC(0)"></div>
+    <div class="cdot" id="cd-1" style="background:#ef4444" onclick="setZC(1)"></div>
+    <div class="cdot" id="cd-2" style="background:#22c55e" onclick="setZC(2)"></div>
+    <div class="cdot" id="cd-3" style="background:#eab308" onclick="setZC(3)"></div>
+    <div class="cdot" id="cd-4" style="background:#f97316" onclick="setZC(4)"></div>
+    <div class="cdot" id="cd-5" style="background:#a855f7" onclick="setZC(5)"></div>
+    <div class="csep"></div>
+    <button onclick="undoZone()">Ångra</button>
+    <button onclick="clearZones()">Rensa zoner</button>
+    <div class="sep"></div>
+    <button class="primary" onclick="openSave()">💾 Spara</button>
+    <button onclick="openLoad()">📂 Ladda</button>
+    <button onclick="exportImg()">⬇ PNG</button>
+  </div>
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type"
+  <div id="recbar"><div class="recdot"></div><span>Spelar in:</span><span id="recsubj">—</span><span id="rectime">0.0s</span></div>
+  <div id="playbar"><span id="ptime">0.0s</span><div id="pbwrap"><div id="pbfill"></div></div><span id="ptotal">0.0s</span></div>
+  <div id="tracklist"></div>
+  <div id="info">Välj spelform och flytta spelare. Välj "Välj spelare", klicka på en spelare och tryck ● Spela in — dra sedan spelaren.</div>
+
+  <div id="cw">
+    <canvas id="c"></canvas>
+    <div id="ledit"><input id="linput" maxlength="5" spellcheck="false" autocomplete="off"/></div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="modal"><div id="mbox"><h3 id="mtitle"></h3><div id="mcontent"></div><div id="mact"></div></div></div>
+
+<script>
+const API='/.netlify/functions/ovningar';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=800,H=480;cv.width=W;cv.height=H;
+const PX=40,PY=40,PW=720,PH=400;
+const ML=103,MR=697,OZW=90,OZH=80,OZY=200,IZW=18,IZH=50,IZY=215,MCR=50;
+const ZC=['#3b82f6','#ef4444','#22c55e','#eab308','#f97316','#a855f7'];
+const CO={bd:'#0d2244',fi:'#add8e6',oz:'#1a3a6b',iz:'#add8e6',A:'#E3000F',B:'#1a3a6b',Bs:'#5a8abf',ba:'#f5c518'};
+
+let tool='select',zt=null,zci=0;
+let drag=null,zones=[],players=[],ball={x:W/2,y:H/2};
+let zdraw=false,zst=null,pp=[];
+let ep=null,lcp=null,lct=0,mdp=null,dd=false,mdt=0;
+let fmt='4v4';
+let recTarget=null,recording=false,recStart=0,recTimer=null,curPts=[];
+let tracks=[];
+let playing=false,playFrame=null,playStart=0;
+
+const FMT={
+  '1v0':{A:[{x:.38,y:.5}],B:[]},
+  '2v1':{A:[{x:.28,y:.35},{x:.28,y:.65}],B:[{x:.65,y:.5}]},
+  '3v2':{A:[{x:.22,y:.25},{x:.22,y:.5},{x:.22,y:.75}],B:[{x:.65,y:.35},{x:.65,y:.65}]},
+  '3v3':{A:[{x:.2,y:.25},{x:.2,y:.5},{x:.2,y:.75}],B:[{x:.8,y:.25},{x:.8,y:.5},{x:.8,y:.75}]},
+  '4v4':{A:[{x:.18,y:.22},{x:.18,y:.5},{x:.18,y:.78},{x:.33,y:.5}],B:[{x:.82,y:.22},{x:.82,y:.5},{x:.82,y:.78},{x:.67,y:.5}]},
+  '5v5':{A:[{x:.18,y:.18},{x:.18,y:.4},{x:.18,y:.62},{x:.18,y:.84},{x:.33,y:.5}],B:[{x:.82,y:.18},{x:.82,y:.4},{x:.82,y:.62},{x:.82,y:.84},{x:.67,y:.5}]},
+  '5v4':{A:[{x:.18,y:.18},{x:.18,y:.4},{x:.18,y:.62},{x:.18,y:.84},{x:.33,y:.5}],B:[{x:.82,y:.22},{x:.82,y:.5},{x:.82,y:.78},{x:.67,y:.5}]},
+};
+function mkP(f){const d=FMT[f],a=[];d.A.forEach((p,i)=>a.push({id:'A'+(i+1),team:'A',x:PX+p.x*PW,y:PY+p.y*PH,label:'A'+(i+1)}));d.B.forEach((p,i)=>a.push({id:'B'+(i+1),team:'B',x:PX+p.x*PW,y:PY+p.y*PH,label:'B'+(i+1)}));return a;}
+
+(async()=>{const dot=document.getElementById('dbdot'),lbl=document.getElementById('dblbl');try{const r=await fetch(API);if(r.ok){dot.className='dbdot ok';lbl.textContent='Ansluten';}else throw 0;}catch{dot.className='dbdot err';lbl.textContent='Offline';}})();
+
+function h2r(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`rgba(${r},${g},${b},${a})`;}
+function si(m){document.getElementById('info').textContent=m;}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.opacity=1;setTimeout(()=>t.style.opacity=0,2500);}
+function gxy(e){const r=cv.getBoundingClientRect(),s=W/r.width,src=e.touches?e.touches[0]:e;return{x:(src.clientX-r.left)*s,y:(src.clientY-r.top)*s};}
+function gp(x,y){return players.find(p=>Math.hypot(p.x-x,p.y-y)<18);}
+function nearBall(x,y){return Math.hypot(ball.x-x,ball.y-y)<12;}
+
+function drawField(){
+  ctx.fillStyle=CO.bd;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=CO.fi;ctx.fillRect(PX,PY,PW,PH);
+  ctx.fillStyle=CO.oz;ctx.fillRect(ML,OZY,OZW,OZH);ctx.fillRect(MR-OZW,OZY,OZW,OZH);
+  ctx.fillStyle=CO.iz;ctx.fillRect(ML,IZY,IZW,IZH);ctx.fillRect(MR-IZW,IZY,IZW,IZH);
+  ctx.strokeStyle='white';ctx.setLineDash([]);ctx.lineWidth=2.5;
+  ctx.strokeRect(PX,PY,PW,PH);
+  ctx.beginPath();ctx.moveTo(W/2,PY);ctx.lineTo(W/2,PY+PH);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H/2,MCR,0,Math.PI*2);ctx.stroke();
+  ctx.lineWidth=2;ctx.strokeRect(ML,OZY,OZW,OZH);ctx.strokeRect(ML,IZY,IZW,IZH);ctx.strokeRect(MR-OZW,OZY,OZW,OZH);ctx.strokeRect(MR-IZW,IZY,IZW,IZH);
+  ctx.strokeStyle='#E3000F';ctx.lineWidth=4;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(ML-11,IZY);ctx.lineTo(ML,IZY);ctx.stroke();ctx.beginPath();ctx.moveTo(ML-11,IZY+IZH);ctx.lineTo(ML,IZY+IZH);ctx.stroke();ctx.beginPath();ctx.moveTo(ML-11,IZY);ctx.lineTo(ML-11,IZY+IZH);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(MR,IZY);ctx.lineTo(MR+11,IZY);ctx.stroke();ctx.beginPath();ctx.moveTo(MR,IZY+IZH);ctx.lineTo(MR+11,IZY+IZH);ctx.stroke();ctx.beginPath();ctx.moveTo(MR+11,IZY);ctx.lineTo(MR+11,IZY+IZH);ctx.stroke();
+  ctx.fillStyle='white';ctx.lineCap='butt';
+  [[W/2,H/2],[W/2,PY+30],[W/2,PY+PH-30],[ML,PY+30],[ML,PY+PH-30],[MR,PY+30],[MR,PY+PH-30]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();});
+}
+
+function drawZone(z,prev){
+  const col=ZC[z.ci]||ZC[0];
+  ctx.save();ctx.fillStyle=h2r(col,prev?.3:.38);ctx.strokeStyle=h2r(col,.9);ctx.lineWidth=2;
+  if(prev)ctx.setLineDash([6,4]);else ctx.setLineDash([]);
+  if(z.type==='rect'){const x=Math.min(z.x1,z.x2),y=Math.min(z.y1,z.y2),w=Math.abs(z.x2-z.x1),h=Math.abs(z.y2-z.y1);ctx.beginPath();ctx.roundRect(x,y,w,h,5);ctx.fill();ctx.stroke();}
+  else if(z.type==='ellipse'){const cx=(z.x1+z.x2)/2,cy=(z.y1+z.y2)/2,rx=Math.abs(z.x2-z.x1)/2,ry=Math.abs(z.y2-z.y1)/2;if(rx>2&&ry>2){ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.fill();ctx.stroke();}}
+  else if(z.type==='poly'&&z.pts.length>1){ctx.beginPath();ctx.moveTo(z.pts[0].x,z.pts[0].y);z.pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();ctx.stroke();}
+  ctx.restore();
+}
+
+function drawTrailPts(pts,col,upToT){
+  if(!pts||pts.length<2)return;
+  const end=upToT===undefined?pts[pts.length-1].t:upToT;
+  ctx.save();ctx.strokeStyle=h2r(col,.5);ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();let started=false;
+  for(const p of pts){if(p.t>end)break;if(!started){ctx.moveTo(p.x,p.y);started=true;}else ctx.lineTo(p.x,p.y);}
+  ctx.stroke();ctx.setLineDash([]);ctx.restore();
+}
+
+function interp(pts,t){
+  if(!pts||!pts.length)return null;
+  if(t<=pts[0].t)return{x:pts[0].x,y:pts[0].y};
+  const last=pts[pts.length-1];
+  if(t>=last.t)return{x:last.x,y:last.y};
+  for(let i=1;i<pts.length;i++){if(pts[i].t>=t){const a=pts[i-1],b=pts[i],f=(t-a.t)/(b.t-a.t);return{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f};}}
+  return{x:last.x,y:last.y};
+}
+
+function maxDur(){return tracks.length?Math.max(...tracks.map(t=>t.pts.length?t.pts[t.pts.length-1].t:0)):0;}
+
+function applyAt(track,t){
+  const pos=interp(track.pts,t);if(!pos)return;
+  if(track.tid==='ball'){ball.x=pos.x;ball.y=pos.y;}
+  else{const p=players.find(p=>p.id===track.tid);if(p){p.x=pos.x;p.y=pos.y;}}
+}
+
+function drawPlayer(p,hi){
+  ctx.fillStyle=p.team==='B'?CO.B:CO.A;ctx.beginPath();ctx.arc(p.x,p.y,16,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=hi?'#facc15':(p.team==='B'?CO.Bs:'rgba(255,255,255,0.9)');ctx.lineWidth=hi?3:2;ctx.stroke();
+  const l=p.label||'',fs=l.length<=2?11:l.length===3?9:7;
+  ctx.fillStyle='#fff';ctx.font=`bold ${fs}px DM Sans,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(l,p.x,p.y);
+}
+
+function drawBallAt(x,y){ctx.fillStyle=CO.ba;ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=1.5;ctx.stroke();}
+
+function draw(mx,my){
+  ctx.clearRect(0,0,W,H);drawField();
+  zones.forEach(z=>drawZone(z,false));
+  if(zdraw&&zt&&zst&&mx!==undefined){
+    if(zt==='rect'||zt==='ellipse')drawZone({type:zt,ci:zci,x1:zst.x,y1:zst.y,x2:mx,y2:my},true);
+    else if(zt==='poly'&&pp.length>0)drawZone({type:'poly',ci:zci,pts:[...pp,{x:mx,y:my}]},true);
+  }
+  tracks.forEach(t=>drawTrailPts(t.pts,t.col));
+  if(recording&&curPts.length>1)drawTrailPts(curPts,'#ff3333');
+  players.forEach(p=>drawPlayer(p,recTarget===p));
+  drawBallAt(ball.x,ball.y);
+  if(recTarget&&recTarget!=='ball'&&!playing){
+    ctx.save();ctx.strokeStyle='#facc15';ctx.lineWidth=2;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.arc(recTarget.x,recTarget.y,22,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+}
+
+// Recording
+function setRecTarget(t){
+  recTarget=t;
+  document.getElementById('btn-rec').disabled=!t;
+  si(`Vald: ${t==='ball'?'Boll':t?.label} — tryck ● Spela in och dra spelaren på planen.`);
+  draw();
+}
+
+function toggleRec(){if(recording)stopRec();else startRec();}
+
+function startRec(){
+  if(!recTarget)return;
+  recording=true;recStart=Date.now();curPts=[];
+  const sp=recTarget==='ball'?{...ball}:{x:recTarget.x,y:recTarget.y};
+  curPts.push({t:0,x:sp.x,y:sp.y});
+  document.getElementById('btn-rec').textContent='■ Stopp';document.getElementById('btn-rec').classList.add('recording');
+  document.getElementById('recbar').style.display='flex';
+  document.getElementById('recsubj').textContent=recTarget==='ball'?'Boll':(recTarget.label||'?');
+  recTimer=setInterval(()=>{document.getElementById('rectime').textContent=((Date.now()-recStart)/1000).toFixed(1)+'s';},100);
+  si('Inspelning pågår — dra spelaren/bollen. Tryck ■ Stopp när rörelsen är klar.');
+}
+
+function stopRec(){
+  if(!recording)return;
+  recording=false;clearInterval(recTimer);
+  document.getElementById('btn-rec').textContent='● Spela in';document.getElementById('btn-rec').classList.remove('recording');
+  document.getElementById('recbar').style.display='none';
+  if(curPts.length>3){
+    const col=recTarget==='ball'?'#f5c518':(recTarget.team==='B'?'#5a8abf':'#E3000F');
+    const tid=recTarget==='ball'?'ball':recTarget.id;
+    const lbl=recTarget==='ball'?'Boll':(recTarget.label||'?');
+    tracks=tracks.filter(t=>t.tid!==tid);
+    tracks.push({id:Date.now(),tid,lbl,col,pts:curPts});
+    applyAt(tracks[tracks.length-1],0);
+    updateTrackList();
+    document.getElementById('btn-play').disabled=false;
+    si(`✓ Rörelse sparad (${(curPts[curPts.length-1].t/1000).toFixed(1)}s). Välj nästa spelare eller tryck ▶ Spela upp.`);
+  }else{si('Inspelning för kort — försök igen.');}
+  curPts=[];draw();
+}
+
+function startPlayback(){
+  if(!tracks.length)return;
+  tracks.forEach(t=>applyAt(t,0));
+  playing=true;playStart=Date.now();
+  const dur=maxDur();
+  document.getElementById('btn-play').style.display='none';
+  document.getElementById('btn-stopplay').style.display='';
+  document.getElementById('playbar').style.display='flex';
+  document.getElementById('ptotal').textContent=(dur/1000).toFixed(1)+'s';
+  si('Spelar upp alla rörelser...');
+  (function loop(){
+    const el=Date.now()-playStart;
+    const prog=Math.min(el/dur,1);
+    tracks.forEach(t=>applyAt(t,el));
+    ctx.clearRect(0,0,W,H);drawField();
+    zones.forEach(z=>drawZone(z,false));
+    tracks.forEach(t=>drawTrailPts(t.pts,t.col,el));
+    players.forEach(p=>drawPlayer(p,false));drawBallAt(ball.x,ball.y);
+    document.getElementById('pbfill').style.width=(prog*100)+'%';
+    document.getElementById('ptime').textContent=(el/1000).toFixed(1)+'s';
+    if(prog<1)playFrame=requestAnimationFrame(loop);
+    else endPlay();
+  })();
+}
+
+function stopPlayback(){endPlay();}
+function endPlay(){
+  playing=false;if(playFrame)cancelAnimationFrame(playFrame);
+  document.getElementById('btn-play').style.display='';document.getElementById('btn-stopplay').style.display='none';
+  document.getElementById('playbar').style.display='none';
+  si('Klar. Tryck ▶ igen för att spela upp igen.');draw();
+}
+
+function clearTracks(){tracks=[];curPts=[];document.getElementById('btn-play').disabled=true;updateTrackList();si('Inspelningar rensade.');draw();}
+
+function updateTrackList(){
+  const el=document.getElementById('tracklist');
+  if(!tracks.length){el.style.display='none';return;}
+  el.style.display='flex';
+  el.innerHTML=tracks.map(t=>{
+    const dur=t.pts.length?(t.pts[t.pts.length-1].t/1000).toFixed(1)+'s':'';
+    return`<div class="ti"><div class="tdot" style="background:${t.col}"></div><span class="tlbl">${t.lbl}</span><span class="tdur">${dur}</span><button class="tdel" onclick="delTrack(${t.id})">✕</button></div>`;
+  }).join('');
+}
+
+function delTrack(id){tracks=tracks.filter(t=>t.id!==id);if(!tracks.length)document.getElementById('btn-play').disabled=true;updateTrackList();draw();}
+
+// Mouse
+cv.addEventListener('mousedown',e=>{
+  if(playing)return;if(ledit.style.display==='block'){closeLabel(true);return;}
+  const{x,y}=gxy(e);mdt=Date.now();dd=false;mdp=null;
+  if(zt==='rect'||zt==='ellipse'){zdraw=true;zst={x,y};return;}
+  if(zt==='poly'){pp.push({x,y});si(`${pp.length} punkt${pp.length>1?'er':''} — dubbelklicka för att avsluta.`);draw(x,y);return;}
+  if(recording)return;
+  if(tool==='recsel'){const p=gp(x,y);if(p){setRecTarget(p);return;}if(nearBall(x,y)){setRecTarget('ball');return;}return;}
+  if(tool==='label'){const p=gp(x,y);if(p)openLabel(p);return;}
+  if(tool==='ball'){ball.x=x;ball.y=y;draw();return;}
+  if(tool==='select'){const p=gp(x,y);if(p){drag={obj:p,ox:x-p.x,oy:y-p.y};mdp=p;return;}if(nearBall(x,y)){drag={ball:true,ox:x-ball.x,oy:y-ball.y};return;}}
+});
+
+cv.addEventListener('mousemove',e=>{
+  const{x,y}=gxy(e);if(playing)return;
+  if(recording&&recTarget){
+    const t=Date.now()-recStart;curPts.push({t,x,y});
+    if(recTarget==='ball'){ball.x=x;ball.y=y;}else{recTarget.x=x;recTarget.y=y;}
+    draw(x,y);return;
+  }
+  if(drag){dd=true;if(drag.ball){ball.x=x-drag.ox;ball.y=y-drag.oy;}else{drag.obj.x=x-drag.ox;drag.obj.y=y-drag.oy;}draw(x,y);}
+  else if(zdraw||(zt==='poly'&&pp.length)){draw(x,y);}
+});
+
+cv.addEventListener('mouseup',e=>{
+  const{x,y}=gxy(e);if(playing)return;
+  if(zdraw&&(zt==='rect'||zt==='ellipse')){if(Math.abs(x-zst.x)>8&&Math.abs(y-zst.y)>8)zones.push({type:zt,ci:zci,x1:zst.x,y1:zst.y,x2:x,y2:y});zdraw=false;zst=null;draw();return;}
+  if(!dd&&tool==='select'&&mdp&&Date.now()-mdt<300){if(lcp===mdp&&Date.now()-lct<500){openLabel(mdp);lcp=null;}else{lcp=mdp;lct=Date.now();}}
+  drag=null;mdp=null;
+});
+
+cv.addEventListener('dblclick',e=>{
+  if(zt==='poly'&&pp.length>=3){zones.push({type:'poly',ci:zci,pts:[...pp]});pp=[];zdraw=false;si('Polygon sparad.');draw();return;}
+  if(tool==='select'){const{x,y}=gxy(e);const p=gp(x,y);if(p)openLabel(p);}
+});
+
+cv.addEventListener('touchstart',e=>{e.preventDefault();cv.dispatchEvent(new MouseEvent('mousedown',{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}));},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();cv.dispatchEvent(new MouseEvent('mousemove',{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}));},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();cv.dispatchEvent(new MouseEvent('mouseup',{clientX:e.changedTouches[0].clientX,clientY:e.changedTouches[0].clientY}));},{passive:false});
+
+// Label
+const ledit=document.getElementById('ledit'),linput=document.getElementById('linput');
+function openLabel(p){if(ep)closeLabel(true);ep=p;const r=cv.getBoundingClientRect(),sc=r.width/W;ledit.style.left=(p.x*sc-43)+'px';ledit.style.top=(p.y*sc-14)+'px';ledit.style.display='block';linput.value=p.label;setTimeout(()=>{linput.select();linput.focus();},30);}
+function closeLabel(save){if(save&&ep){const v=linput.value.trim();if(v)ep.label=v;}ledit.style.display='none';ep=null;draw();}
+linput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();closeLabel(true);}if(e.key==='Escape'){e.stopPropagation();closeLabel(false);}e.stopPropagation();});
+linput.addEventListener('blur',()=>setTimeout(()=>{if(ep)closeLabel(true);},100));
+
+// Controls
+function setTool(t){
+  if(recording)stopRec();if(playing)endPlay();closeLabel(true);
+  tool=t;zt=null;zdraw=false;pp=[];
+  document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+t)?.classList.add('active');
+  document.querySelectorAll('#btn-rect,#btn-ellipse,#btn-poly').forEach(b=>b.classList.remove('active'));
+  const m={select:'Dra spelare eller boll. Dubbelklicka för att byta namn.',ball:'Klicka för att placera bollen.',label:'Klicka på spelare för att byta namn.',recsel:'Klicka på en spelare eller bollen för att välja inspelningsmål.'};
+  si(m[t]||'');
+  if(t!=='recsel'){recTarget=null;document.getElementById('btn-rec').disabled=true;}
+  draw();
+}
+
+function setZoneTool(t){
+  if(recording)stopRec();closeLabel(true);zt=t;tool=null;zdraw=false;pp=[];
+  document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#btn-rect,#btn-ellipse,#btn-poly').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+t)?.classList.add('active');
+  si({rect:'Klick och dra för rektangulär zon.',ellipse:'Klick och dra för elliptisk zon.',poly:'Klicka punkter. Dubbelklicka för att avsluta.'}[t]);draw();
+}
+
+function setZC(i){zci=i;document.querySelectorAll('.cdot').forEach((d,j)=>d.classList.toggle('active',j===i));}
+
+function setFormat(f){
+  if(recording)stopRec();if(playing)endPlay();fmt=f;
+  document.querySelectorAll('.row button').forEach(b=>{if(b.getAttribute('onclick')?.includes('setFormat'))b.classList.toggle('active',b.textContent===f);});
+  players=mkP(f);zones=[];tracks=[];ball={x:W/2,y:H/2};
+  document.getElementById('btn-play').disabled=true;updateTrackList();si(`Spelform: ${f}`);draw();
+}
+
+function clearZones(){zones=[];si('Zoner rensade.');draw();}
+function undoZone(){zones.pop();draw();}
+function resetAll(){
+  if(recording)stopRec();if(playing)endPlay();
+  players=mkP(fmt);zones=[];tracks=[];ball={x:W/2,y:H/2};
+  document.getElementById('btn-play').disabled=true;updateTrackList();si('Återställt.');draw();
+}
+function exportImg(){closeLabel(true);setTimeout(()=>{draw();const l=document.createElement('a');l.download='innebandy-taktik.png';l.href=cv.toDataURL('image/png');l.click();},50);}
+
+function snap(){return{format:fmt,players:JSON.parse(JSON.stringify(players)),ball:{...ball},zones:JSON.parse(JSON.stringify(zones)),tracks:JSON.parse(JSON.stringify(tracks))};}
+
+async function openSave(){
+  document.getElementById('mtitle').textContent='Spara övning';
+  document.getElementById('mcontent').innerHTML=`<input id="sname" placeholder="Namn på övningen..." autocomplete="off"/><p style="font-size:12px;color:#64748b">Sparas i gemensam pool — alla tränare ser den.</p>`;
+  document.getElementById('mact').innerHTML=`<button onclick="closeModal()">Avbryt</button><button class="primary" onclick="doSave()">Spara</button>`;
+  document.getElementById('modal').style.display='flex';setTimeout(()=>document.getElementById('sname').focus(),60);
+}
+async function doSave(){
+  const name=(document.getElementById('sname').value||'').trim();if(!name)return;
+  try{const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,format:fmt,...snap()})});if(!r.ok)throw 0;closeModal();toast(`✓ Sparade "${name}"`);}
+  catch{const ls=JSON.parse(localStorage.getItem('ib')||'[]');ls.unshift({id:'l'+Date.now(),name,ts:Date.now(),...snap()});localStorage.setItem('ib',JSON.stringify(ls.slice(0,50)));closeModal();toast(`✓ Sparade "${name}" (lokalt)`);}
+}
+async function openLoad(){
+  document.getElementById('mtitle').textContent='Ladda övning';
+  document.getElementById('mcontent').innerHTML='<p class="mload">Hämtar...</p>';
+  document.getElementById('mact').innerHTML=`<button onclick="closeModal()">Stäng</button>`;
+  document.getElementById('modal').style.display='flex';
+  let saves=[];try{const r=await fetch(API);if(r.ok)saves=await r.json();}catch{}
+  const ls=JSON.parse(localStorage.getItem('ib')||'[]');
+  const all=[...saves.map(s=>({...s.data,...s,isCloud:true})),...ls.map(s=>({...s,isLocal:true}))].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  if(!all.length){document.getElementById('mcontent').innerHTML='<p class="mload">Inga sparade övningar ännu.</p>';return;}
+  document.getElementById('mcontent').innerHTML=all.map(s=>`<div class="si"><span class="sn">${s.name||'—'}</span><span class="sm">${s.format||''} ${s.isCloud?'☁️':'💾'}</span><div class="sb"><button onclick='loadSnap(${JSON.stringify(s)})'>Ladda</button><button onclick='delSnap("${s.id||''}",${!!s.isLocal})'>Ta bort</button></div></div>`).join('');
+}
+function loadSnap(s){
+  if(typeof s==='string')s=JSON.parse(s);const d=s.data||s;
+  fmt=d.format||'4v4';players=d.players||mkP(fmt);ball=d.ball||{x:W/2,y:H/2};zones=d.zones||[];tracks=d.tracks||[];
+  document.getElementById('btn-play').disabled=!tracks.length;updateTrackList();closeModal();draw();toast(`✓ Laddade "${s.name||d.name}"`);
+}
+async function delSnap(id,isLocal){
+  if(isLocal){const ls=JSON.parse(localStorage.getItem('ib')||'[]').filter(s=>s.id!==id);localStorage.setItem('ib',JSON.stringify(ls));}
+  else if(id){try{await fetch(`${API}?id=${id}`,{method:'DELETE'});}catch{}}
+  toast('Borttagen.');openLoad();
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+
+players=mkP('4v4');draw();
+</script>
+</body>
+</html>
