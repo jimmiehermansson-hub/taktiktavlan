@@ -1,4 +1,4 @@
-export default async function handler(req) {
+exports.handler = async (event) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -6,26 +6,33 @@ export default async function handler(req) {
     "Content-Type": "application/json",
   };
 
-  if (req.method === "OPTIONS") {
-    return new Response("", { status: 200, headers });
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
   try {
-    const body = await req.json();
+    const body = event.body || "{}";
     const res = await fetch(
       "https://coachcore.netlify.app/.netlify/functions/ai-motor",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: body,
       }
     );
+
     const data = await res.json();
-    return new Response(JSON.stringify(data), { status: 200, headers });
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
+
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: "Proxy-fel", details: error.message }),
-      { status: 500, headers }
-    );
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: "Proxy-fel", details: error.message }),
+    };
   }
-}
+};
