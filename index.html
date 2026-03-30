@@ -201,10 +201,10 @@ function loadStep(idx){
   saveCurrentState();
   currentStep=idx;
   const s=steps[currentStep];
-  // Ladda spelarpositioner om de finns sparade för detta steg
   if(s.players)players=JSON.parse(JSON.stringify(s.players));
   if(s.ball)ball={...s.ball};
-  if(s.zones)zones=JSON.parse(JSON.stringify(s.zones));
+  if(s.zones)zones=JSON.parse(JSON.stringify(s.zones||[]));
+  if(s.koner!==undefined)koner=JSON.parse(JSON.stringify(s.koner||[]));
   updStepBar();
   draw();
   si(`Steg ${currentStep+1} av ${steps.length} — rita pilar och flytta spelare fritt.`);
@@ -896,114 +896,68 @@ const RIKTNING_OFFSET={
   'slottet':{dx:120,dy:0},'mittzon':{dx:80,dy:0},
 };
 
-// Ladda övning från CoachCore via URL-parameter (nytt rollbaserat format)
+// Ladda övning från CoachCore via URL-parameter (explicit x/y per steg)
 function laddaFranCoachCore(viz){
   if(!viz||!viz.steg||!viz.steg.length)return;
 
-  // Hämta spelform och formation
   const spelform=viz.spelform||viz.format||'4v4';
-  const formation=viz.formation||Object.keys(VIZ_POSITIONER[spelform]||{})[0]||'Boxen 2-2';
-  const posMap=VIZ_POSITIONER[spelform]?.[formation]||{};
-
-  // Sätt spelform i UI
+  const formation=viz.formation||'Boxen 2-2';
   fmt=spelform;
 
-  // Bygg spelare från positionskartan
-  const spelareLista=Object.entries(posMap).map(([roll,pos])=>({
-    team:pos.team,x:pos.x,y:pos.y,label:roll
-  }));
-  players=spelareLista;
-
-  // Sätt boll hos rätt spelare (bollhos = rollnamn)
-  const forstaSteg=viz.steg[0];
-  const bollRoll=forstaSteg.bollhos||'VB';
-  const bollPos=posMap[bollRoll]||posMap['VB']||{x:130,y:240};
-  ball={x:bollPos.x,y:bollPos.y};
-
-  // Koner från första steget
-  koner=[];
-  (forstaSteg.koner||[]).forEach(k=>{
-    const platser=KON_PLATSER[k]||[];
-    if(platser.length){
-      const idx=koner.filter(ko=>platser.some(p=>p.x===ko.x&&p.y===ko.y)).length;
-      if(platser[idx])koner.push({x:platser[idx].x,y:platser[idx].y,label:'K'});
-    }
-  });
-
-  // Zoner
   const ZON_KOORDINATER={
-    'backzon':{typ:'rect',ci:0,x1:103,y1:80,x2:280,y2:400},
-    'slott':{typ:'rect',ci:1,x1:607,y1:200,x2:697,y2:280},
-    'mittzon':{typ:'rect',ci:2,x1:300,y1:80,x2:500,y2:400},
+    'backzon':{type:'rect',ci:0,x1:103,y1:80,x2:280,y2:400},
+    'slott':{type:'rect',ci:1,x1:607,y1:200,x2:697,y2:280},
+    'mittzon':{type:'rect',ci:2,x1:300,y1:80,x2:500,y2:400},
   };
-  zones=(forstaSteg.zoner||[]).map(z=>ZON_KOORDINATER[z]).filter(Boolean);
 
-  // Bygg steg – spelare rör sig baserat på pilar mellan stegen
-  // Vi håller en "levande" positionskarta som uppdateras för varje steg
-  const livePosMap={};
-  Object.entries(posMap).forEach(([roll,pos])=>{livePosMap[roll]={x:pos.x,y:pos.y,team:pos.team};});
-
-  steps=viz.steg.map((steg,stegIdx)=>{
-    // Uppdatera bollposition per steg
-    const stepBollRoll=steg.bollhos||bollRoll;
-    const stepBollPos=livePosMap[stepBollRoll]||livePosMap['VB']||{x:150,y:240};
-
-    // Bygg pilar från aktuella positioner
-    const pilarISteg=(steg.pilar||[]).map(p=>{
-      const franPos=livePosMap[p.fran];
-      if(!franPos)return null;
-      let tillX,tillY;
-      if(livePosMap[p.till]){
-        tillX=livePosMap[p.till].x;tillY=livePosMap[p.till].y;
-      }else if(RIKTNING_OFFSET[p.till]){
-        tillX=franPos.x+RIKTNING_OFFSET[p.till].dx;
-        tillY=franPos.y+RIKTNING_OFFSET[p.till].dy;
-      }else{
-        tillX=franPos.x+120;tillY=franPos.y;
-      }
-      return{type:p.typ==='run'?'run':'arrow',x1:franPos.x,y1:franPos.y,x2:Math.min(Math.max(tillX,50),750),y2:Math.min(Math.max(tillY,50),430)};
-    }).filter(Boolean);
-
-    // Flytta spelare till pilens slutposition inför nästa steg
-    // Rörelsepilar (run) = spelaren har förflyttat sig till målet
-    if(stegIdx < viz.steg.length-1){
-      (steg.pilar||[]).forEach(p=>{
-        if(p.typ==='run'&&livePosMap[p.fran]){
-          const franPos=livePosMap[p.fran];
-          let nyX,nyY;
-          if(livePosMap[p.till]){
-            // Byt position med målspelaren
-            const tillPos={...livePosMap[p.till]};
-            livePosMap[p.till]={x:franPos.x,y:franPos.y,team:livePosMap[p.till].team};
-            livePosMap[p.fran]={x:tillPos.x,y:tillPos.y,team:franPos.team};
-          }else if(RIKTNING_OFFSET[p.till]){
-            nyX=Math.min(Math.max(franPos.x+RIKTNING_OFFSET[p.till].dx,50),720);
-            nyY=Math.min(Math.max(franPos.y+RIKTNING_OFFSET[p.till].dy,50),430);
-            livePosMap[p.fran]={x:nyX,y:nyY,team:franPos.team};
-          }
-        }
-        // Passningspilar (arrow) = bollen rör sig, spelaren byter position (CLA-regel)
-        if(p.typ==='arrow'&&livePosMap[p.fran]&&livePosMap[p.till]){
-          // Spelaren som passar kliver framåt (halvvägs mot mottagaren)
-          const f=livePosMap[p.fran];
-          const t=livePosMap[p.till];
-          livePosMap[p.fran]={x:f.x+(t.x-f.x)*0.3,y:f.y+(t.y-f.y)*0.3,team:f.team};
-        }
-      });
-    }
-
-    // Snapshot av aktuella spelarpositioner
-    const spelareSnap=Object.entries(livePosMap).map(([roll,pos])=>({
-      team:pos.team,x:pos.x,y:pos.y,label:roll
+  // Bygg steg direkt från AI-genererade x/y-koordinater
+  steps=viz.steg.map((steg,i)=>{
+    // Spelare – direkt från AI:ns koordinater
+    const spelareISteg=(steg.spelare||[]).map(s=>({
+      team:s.team||'A',
+      x:Math.min(Math.max(s.x||200,50),750),
+      y:Math.min(Math.max(s.y||240,50),430),
+      label:s.label||s.id||'?'
     }));
+
+    // Boll – AI anger x/y direkt
+    const bollPos=steg.boll||{x:150,y:240};
+
+    // Pilar – AI anger x1/y1/x2/y2 direkt
+    const pilarISteg=(steg.pilar||[]).map(p=>({
+      type:p.typ==='run'?'run':'arrow',
+      x1:Math.min(Math.max(p.x1||150,50),750),
+      y1:Math.min(Math.max(p.y1||240,50),430),
+      x2:Math.min(Math.max(p.x2||300,50),750),
+      y2:Math.min(Math.max(p.y2||240,50),430),
+    }));
+
+    // Zoner
+    const zonerISteg=(steg.zoner||[]).map(z=>ZON_KOORDINATER[z]).filter(Boolean);
+
+    // Koner
+    const konerISteg=(steg.koner||[]).map(k=>{
+      const platser=KON_PLATSER[k]||[];
+      return platser[0]?{x:platser[0].x,y:platser[0].y,label:'K'}:null;
+    }).filter(Boolean);
 
     return{
       arrows:pilarISteg,
-      players:spelareSnap,
-      ball:{x:stepBollPos.x,y:stepBollPos.y},
-      zones:zones
+      players:spelareISteg,
+      ball:{x:Math.min(Math.max(bollPos.x,50),750),y:Math.min(Math.max(bollPos.y,50),430)},
+      zones:zonerISteg,
+      koner:konerISteg,
     };
   });
+
+  // Sätt första stegets spelare och boll som aktiva
+  const s0=steps[0];
+  if(s0){
+    players=JSON.parse(JSON.stringify(s0.players));
+    ball={...s0.ball};
+    zones=JSON.parse(JSON.stringify(s0.zones||[]));
+    koner=JSON.parse(JSON.stringify(s0.koner||[]));
+  }
 
   currentStep=0;
   updStepBar();
