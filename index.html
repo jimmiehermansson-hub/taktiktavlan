@@ -59,8 +59,9 @@ canvas{display:block;width:100%;cursor:crosshair}
 .sb{display:flex;gap:5px;flex-shrink:0}
 .sb button{font-size:11px;padding:3px 8px}
 .mload{color:var(--text2);font-size:13px;padding:8px 0}
-#ai-svar{white-space:pre-wrap;font-size:13px;line-height:1.7;color:var(--text)}
-#ai-svar h3{color:var(--accent2);font-size:13px;margin-top:12px;margin-bottom:4px}
+.obj-item{border:1px solid var(--border);border-radius:4px;background:var(--surface2);cursor:grab;flex-shrink:0;display:inline-block;vertical-align:middle;width:36px;height:36px}
+.obj-item:hover{border-color:#64748b;background:var(--surface)}
+.obj-item:active{cursor:grabbing}
 </style>
 </head>
 <body>
@@ -79,6 +80,9 @@ canvas{display:block;width:100%;cursor:crosshair}
     <button class="active" onclick="setFormat('4v4')">4v4</button>
     <button onclick="setFormat('5v5')">5v5</button>
     <button onclick="setFormat('5v4')">5v4</button>
+    <button onclick="setFormat('4v5')">4v5</button>
+    <button onclick="setFormat('6v5')">6v5</button>
+    <button onclick="setFormat('5v6')">5v6</button>
   </div>
   <div class="row">
     <span class="rl">Verktyg</span>
@@ -112,8 +116,25 @@ canvas{display:block;width:100%;cursor:crosshair}
     <button class="primary" onclick="openSave()">💾 Spara</button>
     <button onclick="openLoad()">📂 Ladda</button>
     <button onclick="exportImg()">⬇ PNG</button>
+  </div>
+  <div class="row" id="obj-panel">
+    <span class="rl">Objekt</span>
+    <canvas class="obj-item" id="obj-mal-stor" width="36" height="36" title="Stort mål (5v5)" draggable="true" data-type="mal-stor"></canvas>
+    <canvas class="obj-item" id="obj-mal-mellan" width="36" height="36" title="Mellanstor mål" draggable="true" data-type="mal-mellan"></canvas>
+    <canvas class="obj-item" id="obj-mal-litet" width="36" height="36" title="Litet mål (3v3)" draggable="true" data-type="mal-litet"></canvas>
+    <canvas class="obj-item" id="obj-mal-mini" width="36" height="36" title="Minimål" draggable="true" data-type="mal-mini"></canvas>
     <div class="sep"></div>
-    <button class="ai" onclick="askCoachCore()">🤖 CoachCore</button>
+    <canvas class="obj-item" id="obj-kon-liten" width="24" height="24" title="Liten kon" draggable="true" data-type="kon-liten" style="width:24px;height:24px"></canvas>
+    <canvas class="obj-item" id="obj-kon-stor" width="28" height="28" title="Stor kon" draggable="true" data-type="kon-stor" style="width:28px;height:28px"></canvas>
+    <canvas class="obj-item" id="obj-hinder" width="36" height="36" title="Hinder/block" draggable="true" data-type="hinder"></canvas>
+    <canvas class="obj-item" id="obj-stege" width="36" height="36" title="Stege" draggable="true" data-type="stege"></canvas>
+    <canvas class="obj-item" id="obj-sarg" width="36" height="36" title="Passningsvägg (sarg)" draggable="true" data-type="sarg"></canvas>
+    <div class="sep"></div>
+    <canvas class="obj-item" id="obj-spelare-rod" width="36" height="36" title="Röd spelare (lag A)" draggable="true" data-type="spelare-rod"></canvas>
+    <canvas class="obj-item" id="obj-spelare-bla" width="36" height="36" title="Blå spelare (lag B)" draggable="true" data-type="spelare-bla"></canvas>
+    <div class="sep"></div>
+    <button onclick="clearObjekter()" style="font-size:11px">Rensa objekt</button>
+    <button onclick="taBortValdSpelare()" id="btn-tabort-spelare" style="font-size:11px">✕ Ta bort spelare</button>
   </div>
 
   <div id="stepbar">
@@ -237,6 +258,9 @@ const FMT={
   '4v4':{A:[{x:.18,y:.22},{x:.18,y:.5},{x:.18,y:.78},{x:.33,y:.5}],B:[{x:.82,y:.22},{x:.82,y:.5},{x:.82,y:.78},{x:.67,y:.5}]},
   '5v5':{A:[{x:.18,y:.18},{x:.18,y:.4},{x:.18,y:.62},{x:.18,y:.84},{x:.33,y:.5}],B:[{x:.82,y:.18},{x:.82,y:.4},{x:.82,y:.62},{x:.82,y:.84},{x:.67,y:.5}]},
   '5v4':{A:[{x:.18,y:.18},{x:.18,y:.4},{x:.18,y:.62},{x:.18,y:.84},{x:.33,y:.5}],B:[{x:.82,y:.22},{x:.82,y:.5},{x:.82,y:.78},{x:.67,y:.5}]},
+  '4v5':{A:[{x:.18,y:.22},{x:.18,y:.5},{x:.18,y:.78},{x:.33,y:.5}],B:[{x:.82,y:.18},{x:.82,y:.4},{x:.82,y:.62},{x:.82,y:.84},{x:.67,y:.5}]},
+  '6v5':{A:[{x:.15,y:.18},{x:.15,y:.4},{x:.15,y:.62},{x:.15,y:.84},{x:.3,y:.5},{x:.45,y:.5}],B:[{x:.82,y:.18},{x:.82,y:.4},{x:.82,y:.62},{x:.82,y:.84},{x:.67,y:.5}]},
+  '5v6':{A:[{x:.18,y:.18},{x:.18,y:.4},{x:.18,y:.62},{x:.18,y:.84},{x:.33,y:.5}],B:[{x:.85,y:.18},{x:.85,y:.4},{x:.85,y:.62},{x:.85,y:.84},{x:.7,y:.5},{x:.55,y:.5}]},
 };
 function mkP(f){
   const d=FMT[f],a=[];
@@ -342,8 +366,10 @@ function draw(mx,my){
   ctx.fillStyle=CO.ba;ctx.beginPath();ctx.arc(ball.x,ball.y,8,0,Math.PI*2);ctx.fill();
   ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=1.5;ctx.stroke();
   if(as){ctx.save();ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(as.x,as.y,22,0,Math.PI*2);ctx.stroke();ctx.restore();}
-  // Rita koner
+  // Rita koner (från CoachCore)
   koner.forEach(k=>drawKon(k.x,k.y,k.label));
+  // Rita objekt
+  objekter.forEach((o,i)=>drawObjekt(o,i));
 }
 
 // Mouse events
@@ -354,8 +380,31 @@ cv.addEventListener('mousedown',e=>{
   if(zt==='poly'){pp.push({x,y});si(`${pp.length} punkt${pp.length>1?'er':''} — dubbelklicka för att avsluta.`);draw(x,y);return;}
   if(tool==='ball'){ball.x=x;ball.y=y;draw();return;}
   if(tool==='select'){
+    // Kolla om vi klickar på rotationshandtag
+    if(selectedObjIdx!==null){
+      const so=objekter[selectedObjIdx];
+      const sz=OBJ_SIZES[so.type]||{w:30,h:20};
+      const hx=so.x,hy=so.y-Math.max(sz.w/2,sz.h/2)-16;
+      if(Math.hypot(x-hx,y-hy)<10){
+        objekter[selectedObjIdx].rot=((objekter[selectedObjIdx].rot||0)+45)%360;
+        draw();return;
+      }
+    }
+    // Kolla om vi klickar på ett objekt
+    const oi=getObjAt(x,y);
+    if(oi>=0){
+      selectedObjIdx=oi;
+      drag={objIdx:oi,ox:x-objekter[oi].x,oy:y-objekter[oi].y};
+      draw();return;
+    }
+    selectedObjIdx=null;
     const p=gp(x,y);if(p){drag={obj:p,ox:x-p.x,oy:y-p.y};mdp=p;return;}
     if(Math.hypot(ball.x-x,ball.y-y)<12){drag={ball:true,ox:x-ball.x,oy:y-ball.y};return;}
+  }
+  if(tool==='tabort'){
+    const p=gp(x,y);
+    if(p){const i=players.indexOf(p);if(i>=0){players.splice(i,1);draw();si('Spelare borttagen.');return;}}
+    return;
   }
   if(tool==='arrow'||tool==='run'){
     const p=gp(x,y);
@@ -370,7 +419,12 @@ cv.addEventListener('mousedown',e=>{
 
 cv.addEventListener('mousemove',e=>{
   const{x,y}=gxy(e);
-  if(drag){dd=true;if(drag.ball){ball.x=x-drag.ox;ball.y=y-drag.oy;}else{drag.obj.x=x-drag.ox;drag.obj.y=y-drag.oy;}draw(x,y);}
+  if(drag){dd=true;
+    if(drag.ball){ball.x=x-drag.ox;ball.y=y-drag.oy;}
+    else if(drag.objIdx!==undefined){objekter[drag.objIdx].x=x-drag.ox;objekter[drag.objIdx].y=y-drag.oy;}
+    else if(drag.obj){drag.obj.x=x-drag.ox;drag.obj.y=y-drag.oy;}
+    draw(x,y);
+  }
   else if(zdraw||(zt==='poly'&&pp.length)||(as&&(tool==='arrow'||tool==='run'))){draw(x,y);}
 });
 
@@ -389,7 +443,13 @@ cv.addEventListener('mouseup',e=>{
 
 cv.addEventListener('dblclick',e=>{
   if(zt==='poly'&&pp.length>=3){zones.push({type:'poly',ci:zci,pts:[...pp]});pp=[];zdraw=false;si('Polygon sparad.');draw();return;}
-  if(tool==='select'){const{x,y}=gxy(e);const p=gp(x,y);if(p)openLabel(p);}
+  if(tool==='select'){
+    const{x,y}=gxy(e);
+    // Dubbelklick på objekt = ta bort
+    const oi=getObjAt(x,y);
+    if(oi>=0){objekter.splice(oi,1);draw();si('Objekt borttaget.');return;}
+    const p=gp(x,y);if(p)openLabel(p);
+  }
 });
 
 cv.addEventListener('touchstart',e=>{e.preventDefault();cv.dispatchEvent(new MouseEvent('mousedown',{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}));},{passive:false});
@@ -409,7 +469,7 @@ function setTool(t){
   document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active'));
   document.getElementById('btn-'+t)?.classList.add('active');
   document.querySelectorAll('#btn-rect,#btn-ellipse,#btn-poly').forEach(b=>b.classList.remove('active'));
-  const m={select:'Dra spelare eller boll fritt. Dubbelklicka för att byta namn.',arrow:'Klicka spelare → mål för passningspil.',run:'Klicka spelare → punkt för rörelsepil.',ball:'Klicka för att placera bollen.'};
+  const m={select:'Dra spelare eller boll fritt. Dubbelklicka för att byta namn.',arrow:'Klicka spelare → mål för passningspil.',run:'Klicka spelare → punkt för rörelsepil.',ball:'Klicka för att placera bollen.',tabort:'Klicka på en spelare för att ta bort den.'};
   si(m[t]||'');draw();
 }
 function setZoneTool(t){
@@ -431,7 +491,7 @@ function clearZones(){zones=[];draw();}
 function undoZone(){zones.pop();draw();}
 function resetAll(){
   players=mkP(fmt);steps=[{arrows:[],players:JSON.parse(JSON.stringify(players)),ball:{x:W/2,y:H/2},zones:[]}];
-  currentStep=0;ball={x:W/2,y:H/2};zones=[];as=null;
+  currentStep=0;ball={x:W/2,y:H/2};zones=[];as=null;objekter=[];
   updStepBar();si('Återställt.');draw();
 }
 function exportImg(){closeLabel(true);setTimeout(()=>{draw();const l=document.createElement('a');l.download='innebandy-taktik.png';l.href=cv.toDataURL('image/png');l.click();},50);}
@@ -439,40 +499,221 @@ function exportImg(){closeLabel(true);setTimeout(()=>{draw();const l=document.cr
 // Snap
 function snap(){
   saveCurrentState();
-  return{format:fmt,players:JSON.parse(JSON.stringify(players)),ball:{...ball},zones:JSON.parse(JSON.stringify(zones)),steps:JSON.parse(JSON.stringify(steps))};
+  return{format:fmt,players:JSON.parse(JSON.stringify(players)),ball:{...ball},zones:JSON.parse(JSON.stringify(zones)),steps:JSON.parse(JSON.stringify(steps)),objekter:JSON.parse(JSON.stringify(objekter))};
 }
 
-// CoachCore integration
-async function askCoachCore(){
-  document.getElementById('mtitle').textContent='🤖 CoachCore – AI-analys';
-  document.getElementById('mcontent').innerHTML='<p class="mload">CoachCore analyserar ditt system...</p>';
-  document.getElementById('mact').innerHTML=`<button onclick="closeModal()">Stäng</button>`;
-  document.getElementById('modal').style.display='flex';
-  const taktik=snap();
-  try{
-    const res=await fetch(COACHCORE_API,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        mode:'quick',
-        tacticalData:{
-          format:taktik.format,
-          system_name:'Ritat system',
-          players:taktik.players,
-          zones:taktik.zones,
-          steps:taktik.steps
-        },
-        logistics:{hall_time:60,area:'helplan'}
-      })
-    });
-    const data=await res.json();
-    const svar=data.response||data.error||'Inget svar';
-    document.getElementById('mcontent').innerHTML=`<div id="ai-svar">${svar.replace(/###\s(.+)/g,'<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>`;
-    document.getElementById('mact').innerHTML=`<button onclick="closeModal()">Stäng</button>`;
-  }catch(e){
-    document.getElementById('mcontent').innerHTML=`<p class="mload">Kunde inte nå CoachCore: ${e.message}</p>`;
+// ===== OBJEKTSYSTEM =====
+let objekter=[]; // {type, x, y}
+let dragObjType=null; // typ som dras från panelen
+let dragObjIdx=null; // index på objekt som dras på canvas
+let selectedObjIdx=null; // valt objekt för rotation
+
+const OBJ_SIZES={
+  'mal-stor':{w:60,h:20},
+  'mal-mellan':{w:44,h:16},
+  'mal-litet':{w:30,h:14},
+  'mal-mini':{w:20,h:10},
+  'kon-liten':{w:10,h:14},
+  'kon-stor':{w:14,h:18},
+  'hinder':{w:40,h:16},
+  'stege':{w:24,h:40},
+  'sarg':{w:60,h:12},
+  'spelare-rod':{w:32,h:32},
+  'spelare-bla':{w:32,h:32},
+};
+
+function drawObjekt(obj,idx){
+  const{type,x,y}=obj;
+  const rot=obj.rot||0;
+  const sz=OBJ_SIZES[type]||{w:30,h:20};
+  const hw=sz.w/2,hh=sz.h/2;
+  const r=Math.max(hw,hh);
+
+  // Markering och handtag UTAN rotation (i world-space)
+  if(idx===selectedObjIdx){
+    ctx.save();
+    ctx.strokeStyle='#facc15';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.arc(x,y,r+8,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#facc15';
+    ctx.beginPath();ctx.arc(x,y-r-16,6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#0f172a';ctx.font='bold 9px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('↻',x,y-r-16);
+    ctx.restore();
   }
+
+  // Allt nedan ritas i roterat koordinatsystem kring (x,y)
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(rot*Math.PI/180);
+
+  if(type==='spelare-rod'||type==='spelare-bla'){
+    const team=type==='spelare-rod'?'A':'B';
+    ctx.fillStyle=team==='A'?CO.A:CO.B;
+    ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=team==='A'?'rgba(255,255,255,0.9)':CO.Bs;ctx.lineWidth=2.5;ctx.stroke();
+    ctx.restore();return;
+  }
+
+  if(type.startsWith('mal')){
+    ctx.strokeStyle='white';ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-hw,-hh);ctx.lineTo(-hw,hh);
+    ctx.moveTo(hw,-hh);ctx.lineTo(hw,hh);
+    ctx.moveTo(-hw,-hh);ctx.lineTo(hw,-hh);
+    ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(-hw,hh);ctx.lineTo(hw,hh);ctx.stroke();
+    ctx.setLineDash([]);
+  }else if(type==='kon-liten'||type==='kon-stor'){
+    ctx.fillStyle='#f97316';
+    ctx.beginPath();ctx.moveTo(0,-hh);ctx.lineTo(-hw,hh);ctx.lineTo(hw,hh);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#ea580c';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,0.3)';
+    ctx.beginPath();ctx.arc(0,-hh+3,2,0,Math.PI*2);ctx.fill();
+  }else if(type==='hinder'){
+    ctx.fillStyle='#475569';
+    ctx.beginPath();ctx.roundRect(-hw,-hh,sz.w,sz.h,3);ctx.fill();
+    ctx.strokeStyle='#64748b';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.strokeStyle='#334155';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(-hw,-hh);ctx.lineTo(hw,hh);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(hw,-hh);ctx.lineTo(-hw,hh);ctx.stroke();
+  }else if(type==='stege'){
+    ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(-6,-hh);ctx.lineTo(-6,hh);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(6,-hh);ctx.lineTo(6,hh);ctx.stroke();
+    for(let i=0;i<=4;i++){
+      const py=-hh+(sz.h/4)*i;
+      ctx.beginPath();ctx.moveTo(-6,py);ctx.lineTo(6,py);ctx.stroke();
+    }
+  }else if(type==='sarg'){
+    ctx.fillStyle='#1e3a5f';
+    ctx.beginPath();ctx.roundRect(-hw,-hh,sz.w,sz.h,2);ctx.fill();
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#93c5fd';ctx.font='bold 7px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('SARG',0,0);
+  }
+  ctx.restore();
 }
+
+function clearObjekter(){objekter=[];selectedObjIdx=null;draw();si('Objekt rensade.');}
+
+function taBortValdSpelare(){
+  if(selectedObjIdx!==null){
+    objekter.splice(selectedObjIdx,1);
+    selectedObjIdx=null;draw();si('Objekt borttaget.');return;
+  }
+  // Aktivera ta-bort-läge för spelare
+  if(tool==='tabort'){setTool('select');si('Ta bort-läge avaktiverat.');}
+  else{setTool('tabort');si('Klicka på en spelare för att ta bort den.');}
+}
+
+function getObjAt(x,y){
+  for(let i=objekter.length-1;i>=0;i--){
+    const o=objekter[i];
+    const sz=OBJ_SIZES[o.type]||{w:30,h:20};
+    if(Math.abs(x-o.x)<sz.w/2+4&&Math.abs(y-o.y)<sz.h/2+4)return i;
+  }
+  return -1;
+}
+
+// Rita objektikoner i panelen
+function ritaObjIkoner(){
+  const typer=['mal-stor','mal-mellan','mal-litet','mal-mini','kon-liten','kon-stor','hinder','stege','sarg','spelare-rod','spelare-bla'];
+  typer.forEach(type=>{
+    const c=document.getElementById('obj-'+type);
+    if(!c)return;
+    const ctx2=c.getContext('2d');
+    ctx2.clearRect(0,0,c.width,c.height);
+    // Rita miniversion av objektet
+    const tmpCtx=ctx;
+    // Använd samma drawObjekt men på mini-canvas
+    const mx=c.width/2,my=c.height/2;
+    ctx2.save();
+    const sz=OBJ_SIZES[type]||{w:30,h:20};
+    const scaleX=Math.min((c.width-4)/sz.w,1);
+    const scaleY=Math.min((c.height-4)/sz.h,1);
+    const scale=Math.min(scaleX,scaleY);
+    ctx2.translate(mx,my);ctx2.scale(scale,scale);
+    const hw=sz.w/2,hh=sz.h/2;
+    if(type.startsWith('mal')){
+      ctx2.strokeStyle='white';ctx2.lineWidth=3/scale;ctx2.lineCap='round';
+      ctx2.beginPath();
+      ctx2.moveTo(-hw,-hh);ctx2.lineTo(-hw,hh);
+      ctx2.moveTo(hw,-hh);ctx2.lineTo(hw,hh);
+      ctx2.moveTo(-hw,-hh);ctx2.lineTo(hw,-hh);
+      ctx2.stroke();
+    }else if(type.startsWith('kon')){
+      ctx2.fillStyle='#f97316';
+      ctx2.beginPath();ctx2.moveTo(0,-hh);ctx2.lineTo(-hw,hh);ctx2.lineTo(hw,hh);
+      ctx2.closePath();ctx2.fill();
+      ctx2.strokeStyle='#ea580c';ctx2.lineWidth=1/scale;ctx2.stroke();
+    }else if(type==='hinder'){
+      ctx2.fillStyle='#475569';
+      ctx2.fillRect(-hw,-hh,sz.w,sz.h);
+      ctx2.strokeStyle='#64748b';ctx2.lineWidth=1.5/scale;ctx2.strokeRect(-hw,-hh,sz.w,sz.h);
+    }else if(type==='stege'){
+      ctx2.strokeStyle='#94a3b8';ctx2.lineWidth=2/scale;
+      ctx2.beginPath();ctx2.moveTo(-6,-hh);ctx2.lineTo(-6,hh);ctx2.stroke();
+      ctx2.beginPath();ctx2.moveTo(6,-hh);ctx2.lineTo(6,hh);ctx2.stroke();
+      for(let i=0;i<=4;i++){
+        const py=-hh+(sz.h/4)*i;
+        ctx2.beginPath();ctx2.moveTo(-6,py);ctx2.lineTo(6,py);ctx2.stroke();
+      }
+    }else if(type==='sarg'){
+      ctx2.fillStyle='#1e3a5f';ctx2.fillRect(-hw,-hh,sz.w,sz.h);
+      ctx2.strokeStyle='#3b82f6';ctx2.lineWidth=2/scale;ctx2.strokeRect(-hw,-hh,sz.w,sz.h);
+      ctx2.fillStyle='#93c5fd';ctx2.font=`bold ${7/scale}px sans-serif`;
+      ctx2.textAlign='center';ctx2.textBaseline='middle';ctx2.fillText('SARG',0,0);
+    }else if(type==='spelare-rod'){
+      ctx2.fillStyle=CO.A;
+      ctx2.beginPath();ctx2.arc(0,0,12,0,Math.PI*2);ctx2.fill();
+      ctx2.strokeStyle='rgba(255,255,255,0.9)';ctx2.lineWidth=2/scale;ctx2.stroke();
+      ctx2.fillStyle='white';ctx2.font=`bold ${8/scale}px sans-serif`;
+      ctx2.textAlign='center';ctx2.textBaseline='middle';ctx2.fillText('A',0,0);
+    }else if(type==='spelare-bla'){
+      ctx2.fillStyle=CO.B;
+      ctx2.beginPath();ctx2.arc(0,0,12,0,Math.PI*2);ctx2.fill();
+      ctx2.strokeStyle=CO.Bs;ctx2.lineWidth=2/scale;ctx2.stroke();
+      ctx2.fillStyle='white';ctx2.font=`bold ${8/scale}px sans-serif`;
+      ctx2.textAlign='center';ctx2.textBaseline='middle';ctx2.fillText('B',0,0);
+    }
+    ctx2.restore();
+  });
+}
+
+// Drag från panel till canvas
+document.querySelectorAll('.obj-item').forEach(el=>{
+  el.addEventListener('dragstart',e=>{
+    dragObjType=el.dataset.type;
+    e.dataTransfer.effectAllowed='copy';
+  });
+  el.addEventListener('dragend',()=>{dragObjType=null;});
+});
+
+document.getElementById('cw').addEventListener('dragover',e=>{
+  e.preventDefault();e.dataTransfer.dropEffect='copy';
+});
+
+document.getElementById('cw').addEventListener('drop',e=>{
+  e.preventDefault();
+  if(!dragObjType)return;
+  const r=cv.getBoundingClientRect(),s=W/r.width;
+  const x=(e.clientX-r.left)*s;
+  const y=(e.clientY-r.top)*s;
+  if(dragObjType==='spelare-rod'){
+    players.push({team:'A',x,y,label:'A'+(players.filter(p=>p.team==='A').length+1)});
+  }else if(dragObjType==='spelare-bla'){
+    players.push({team:'B',x,y,label:'B'+(players.filter(p=>p.team==='B').length+1)});
+  }else{
+    objekter.push({type:dragObjType,x,y,rot:0});
+  }
+  draw();
+  dragObjType=null;
+});
 
 // Save/Load
 async function openSave(){
@@ -628,6 +869,8 @@ steps[0].players=JSON.parse(JSON.stringify(players));
 steps[0].ball={...ball};
 updStepBar();
 draw();
+// Rita objektikoner i panelen
+setTimeout(ritaObjIkoner, 100);
 </script>
 </body>
 </html>
