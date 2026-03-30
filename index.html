@@ -144,6 +144,16 @@ canvas{display:block;width:100%;cursor:crosshair}
   </div>
 
   <div id="info">Rita pilar för passningar och rörelser. Lägg till steg för att visa spelsekvenser. Dubbelklicka spelare för att byta namn.</div>
+  <div style="display:flex;align-items:center;gap:16px;padding:4px 2px;font-size:11px;color:var(--text2)">
+    <span style="display:flex;align-items:center;gap:6px">
+      <svg width="32" height="10" style="flex-shrink:0"><line x1="0" y1="5" x2="32" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      Rörelse/löpning
+    </span>
+    <span style="display:flex;align-items:center;gap:6px">
+      <svg width="32" height="10" style="flex-shrink:0"><line x1="0" y1="5" x2="32" y2="5" stroke="white" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round"/></svg>
+      Passning
+    </span>
+  </div>
 
   <div id="cw">
     <canvas id="c"></canvas>
@@ -358,7 +368,7 @@ function draw(mx,my){
   arrows.forEach((a,i)=>{
     const prog=animPlaying&&i===arrows.length-1?Math.min(animAt/60,1):animPlaying&&i<arrows.length-1?1:animPlaying?0:1;
     if(!animPlaying||i<=arrows.length-1){
-      drawArrow(a.x1,a.y1,a.x2,a.y2,a.type==='run'?CO.ru:CO.pa,a.type==='run',animPlaying?(i<arrows.length-1?1:(animAt/60)):1);
+      drawArrow(a.x1,a.y1,a.x2,a.y2,'white',a.type==='arrow',animPlaying?(i<arrows.length-1?1:(animAt/60)):1);
       if(!animPlaying)drawBadge(a.x1,a.y1,i+1);
     }
   });
