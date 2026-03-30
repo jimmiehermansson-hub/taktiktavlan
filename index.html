@@ -824,11 +824,11 @@ const VIZ_POSITIONER={
       M3:{x:610,y:240,team:'B'},M4:{x:650,y:170,team:'B'}
     },
     'Backbytet 2-1-1':{
-      VB:{x:110,y:175,team:'A'},HB:{x:110,y:305,team:'A'},
-      C:{x:260,y:240,team:'A'},
-      F:{x:390,y:240,team:'A'},
-      M1:{x:490,y:175,team:'B'},M2:{x:490,y:305,team:'B'},
-      M3:{x:580,y:240,team:'B'},M4:{x:640,y:240,team:'B'}
+      VB:{x:150,y:175,team:'A'},HB:{x:150,y:305,team:'A'},
+      C:{x:310,y:240,team:'A'},
+      F:{x:450,y:240,team:'A'},
+      M1:{x:530,y:175,team:'B'},M2:{x:530,y:305,team:'B'},
+      M3:{x:620,y:175,team:'B'},M4:{x:620,y:305,team:'B'}
     },
   },
   '5v5':{
@@ -938,31 +938,68 @@ function laddaFranCoachCore(viz){
   };
   zones=(forstaSteg.zoner||[]).map(z=>ZON_KOORDINATER[z]).filter(Boolean);
 
-  // Bygg steg
-  steps=viz.steg.map((steg)=>{
+  // Bygg steg – spelare rör sig baserat på pilar mellan stegen
+  // Vi håller en "levande" positionskarta som uppdateras för varje steg
+  const livePosMap={};
+  Object.entries(posMap).forEach(([roll,pos])=>{livePosMap[roll]={x:pos.x,y:pos.y,team:pos.team};});
+
+  steps=viz.steg.map((steg,stegIdx)=>{
     // Uppdatera bollposition per steg
     const stepBollRoll=steg.bollhos||bollRoll;
-    const stepBollPos=posMap[stepBollRoll]||bollPos;
+    const stepBollPos=livePosMap[stepBollRoll]||livePosMap['VB']||{x:150,y:240};
 
-    // Bygg pilar från roller till roller
+    // Bygg pilar från aktuella positioner
     const pilarISteg=(steg.pilar||[]).map(p=>{
-      const franPos=posMap[p.fran];
+      const franPos=livePosMap[p.fran];
       if(!franPos)return null;
       let tillX,tillY;
-      if(posMap[p.till]){
-        tillX=posMap[p.till].x;tillY=posMap[p.till].y;
+      if(livePosMap[p.till]){
+        tillX=livePosMap[p.till].x;tillY=livePosMap[p.till].y;
       }else if(RIKTNING_OFFSET[p.till]){
         tillX=franPos.x+RIKTNING_OFFSET[p.till].dx;
         tillY=franPos.y+RIKTNING_OFFSET[p.till].dy;
       }else{
-        tillX=franPos.x+100;tillY=franPos.y;
+        tillX=franPos.x+120;tillY=franPos.y;
       }
-      return{type:p.typ==='run'?'run':'arrow',x1:franPos.x,y1:franPos.y,x2:tillX,y2:tillY};
+      return{type:p.typ==='run'?'run':'arrow',x1:franPos.x,y1:franPos.y,x2:Math.min(Math.max(tillX,50),750),y2:Math.min(Math.max(tillY,50),430)};
     }).filter(Boolean);
+
+    // Flytta spelare till pilens slutposition inför nästa steg
+    // Rörelsepilar (run) = spelaren har förflyttat sig till målet
+    if(stegIdx < viz.steg.length-1){
+      (steg.pilar||[]).forEach(p=>{
+        if(p.typ==='run'&&livePosMap[p.fran]){
+          const franPos=livePosMap[p.fran];
+          let nyX,nyY;
+          if(livePosMap[p.till]){
+            // Byt position med målspelaren
+            const tillPos={...livePosMap[p.till]};
+            livePosMap[p.till]={x:franPos.x,y:franPos.y,team:livePosMap[p.till].team};
+            livePosMap[p.fran]={x:tillPos.x,y:tillPos.y,team:franPos.team};
+          }else if(RIKTNING_OFFSET[p.till]){
+            nyX=Math.min(Math.max(franPos.x+RIKTNING_OFFSET[p.till].dx,50),720);
+            nyY=Math.min(Math.max(franPos.y+RIKTNING_OFFSET[p.till].dy,50),430);
+            livePosMap[p.fran]={x:nyX,y:nyY,team:franPos.team};
+          }
+        }
+        // Passningspilar (arrow) = bollen rör sig, spelaren byter position (CLA-regel)
+        if(p.typ==='arrow'&&livePosMap[p.fran]&&livePosMap[p.till]){
+          // Spelaren som passar kliver framåt (halvvägs mot mottagaren)
+          const f=livePosMap[p.fran];
+          const t=livePosMap[p.till];
+          livePosMap[p.fran]={x:f.x+(t.x-f.x)*0.3,y:f.y+(t.y-f.y)*0.3,team:f.team};
+        }
+      });
+    }
+
+    // Snapshot av aktuella spelarpositioner
+    const spelareSnap=Object.entries(livePosMap).map(([roll,pos])=>({
+      team:pos.team,x:pos.x,y:pos.y,label:roll
+    }));
 
     return{
       arrows:pilarISteg,
-      players:JSON.parse(JSON.stringify(spelareLista)),
+      players:spelareSnap,
       ball:{x:stepBollPos.x,y:stepBollPos.y},
       zones:zones
     };
