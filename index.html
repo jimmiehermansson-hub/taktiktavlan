@@ -793,69 +793,126 @@ function drawKon(x,y,label){
 
 // Koner ritas direkt i draw()-funktionen
 
-// Ladda övning från CoachCore via URL-parameter
+// ===== VIZ_POSITIONER – startpositioner per formation =====
+const VIZ_POSITIONER={
+  '3v3':{
+    'Triangeln 1-2':{VB:{x:130,y:240,team:'A'},VF:{x:480,y:160,team:'A'},HF:{x:480,y:320,team:'A'},M1:{x:560,y:160,team:'B'},M2:{x:560,y:320,team:'B'},M3:{x:620,y:240,team:'B'}},
+    'Triangeln 2-1':{VB:{x:130,y:180,team:'A'},HB:{x:130,y:300,team:'A'},VF:{x:480,y:240,team:'A'},M1:{x:560,y:180,team:'B'},M2:{x:560,y:300,team:'B'},M3:{x:620,y:240,team:'B'}},
+  },
+  '4v4':{
+    'Boxen 2-2':{VB:{x:130,y:170,team:'A'},HB:{x:130,y:310,team:'A'},VF:{x:370,y:170,team:'A'},HF:{x:370,y:310,team:'A'},M1:{x:520,y:170,team:'B'},M2:{x:520,y:310,team:'B'},M3:{x:630,y:170,team:'B'},M4:{x:630,y:310,team:'B'}},
+    'Diamanten 1-2-1':{VB:{x:130,y:240,team:'A'},C1:{x:290,y:160,team:'A'},C2:{x:290,y:320,team:'A'},VF:{x:440,y:240,team:'A'},M1:{x:530,y:160,team:'B'},M2:{x:530,y:320,team:'B'},M3:{x:610,y:240,team:'B'},M4:{x:650,y:160,team:'B'}},
+    'Backbytet 2-1-1':{VB:{x:115,y:240,team:'A'},IB:{x:290,y:200,team:'A'},VF:{x:460,y:160,team:'A'},M1:{x:480,y:240,team:'B'},M2:{x:570,y:180,team:'B'},M3:{x:610,y:300,team:'B'},M4:{x:645,y:240,team:'B'}},
+  },
+  '5v5':{
+    'Klassisk 2-1-2':{VB:{x:130,y:160,team:'A'},HB:{x:130,y:320,team:'A'},C:{x:280,y:240,team:'A'},VF:{x:430,y:160,team:'A'},HF:{x:430,y:320,team:'A'},M1:{x:520,y:160,team:'B'},M2:{x:520,y:320,team:'B'},M3:{x:590,y:240,team:'B'},M4:{x:635,y:160,team:'B'},M5:{x:635,y:320,team:'B'}},
+    'Styrspel 2-2-1':{VB:{x:130,y:160,team:'A'},HB:{x:130,y:320,team:'A'},C1:{x:290,y:180,team:'A'},C2:{x:290,y:300,team:'A'},VF:{x:450,y:240,team:'A'},M1:{x:520,y:160,team:'B'},M2:{x:520,y:320,team:'B'},M3:{x:590,y:240,team:'B'},M4:{x:635,y:160,team:'B'},M5:{x:635,y:320,team:'B'}},
+  },
+  '5v4 Powerplay':{
+    'Paraplyet 1-2-2':{VB:{x:220,y:240,team:'A'},C1:{x:360,y:160,team:'A'},C2:{x:360,y:320,team:'A'},VF:{x:510,y:160,team:'A'},HF:{x:510,y:320,team:'A'},M1:{x:555,y:185,team:'B'},M2:{x:555,y:295,team:'B'},M3:{x:625,y:155,team:'B'},M4:{x:625,y:325,team:'B'}},
+  },
+  '4v5 Boxplay':{
+    'Boxplay':{VB:{x:200,y:160,team:'A'},HB:{x:200,y:320,team:'A'},VF:{x:350,y:160,team:'A'},HF:{x:350,y:320,team:'A'},M1:{x:450,y:240,team:'B'},M2:{x:550,y:160,team:'B'},M3:{x:550,y:320,team:'B'},M4:{x:625,y:160,team:'B'},M5:{x:625,y:320,team:'B'}},
+  },
+  '6v5':{
+    'Överbelastning 2-1-3':{VB:{x:130,y:160,team:'A'},HB:{x:130,y:320,team:'A'},C:{x:280,y:240,team:'A'},VF:{x:410,y:140,team:'A'},CF:{x:410,y:240,team:'A'},HF:{x:410,y:340,team:'A'},M1:{x:520,y:160,team:'B'},M2:{x:520,y:320,team:'B'},M3:{x:600,y:200,team:'B'},M4:{x:600,y:280,team:'B'},M5:{x:645,y:240,team:'B'}},
+  },
+};
+
+// Konplaceringar
+const KON_PLATSER={
+  'backzon-vänster':[{x:160,y:140},{x:160,y:200},{x:160,y:280},{x:160,y:340}],
+  'backzon-höger':[{x:600,y:140},{x:600,y:200},{x:600,y:280},{x:600,y:340}],
+  'mittzon':[{x:340,y:160},{x:340,y:320},{x:400,y:240}],
+  'slott':[{x:620,y:210},{x:620,y:270},{x:660,y:240}],
+  'sargen-vänster':[{x:200,y:55},{x:300,y:55},{x:400,y:55}],
+  'sargen-höger':[{x:200,y:425},{x:300,y:425},{x:400,y:425}],
+};
+
+// Riktningsoffsets för pilar
+const RIKTNING_OFFSET={
+  'framåt':{dx:120,dy:0},'bakåt':{dx:-120,dy:0},
+  'höger':{dx:0,dy:100},'vänster':{dx:0,dy:-100},
+  'djup':{dx:150,dy:0},'backzon':{dx:-120,dy:0},
+  'slottet':{dx:120,dy:0},'mittzon':{dx:80,dy:0},
+};
+
+// Ladda övning från CoachCore via URL-parameter (nytt rollbaserat format)
 function laddaFranCoachCore(viz){
   if(!viz||!viz.steg||!viz.steg.length)return;
 
+  // Hämta spelform och formation
+  const spelform=viz.spelform||viz.format||'4v4';
+  const formation=viz.formation||Object.keys(VIZ_POSITIONER[spelform]||{})[0]||'Boxen 2-2';
+  const posMap=VIZ_POSITIONER[spelform]?.[formation]||{};
+
+  // Sätt spelform i UI
+  fmt=spelform;
+
+  // Bygg spelare från positionskartan
+  const spelareLista=Object.entries(posMap).map(([roll,pos])=>({
+    team:pos.team,x:pos.x,y:pos.y,label:roll
+  }));
+  players=spelareLista;
+
+  // Sätt boll hos rätt spelare (bollhos = rollnamn)
   const forstaSteg=viz.steg[0];
+  const bollRoll=forstaSteg.bollhos||'VB';
+  const bollPos=posMap[bollRoll]||posMap['VB']||{x:130,y:240};
+  ball={x:bollPos.x,y:bollPos.y};
 
-  // Sätt format
-  fmt=viz.format||'4v4';
-
-  // Bygg spelare från steg 1
-  if(forstaSteg.spelare&&forstaSteg.spelare.length){
-    players=forstaSteg.spelare.map(s=>({
-      team:s.team||'A',
-      x:s.x,
-      y:s.y,
-      label:s.label||s.id
-    }));
-  }
-
-  // Sätt boll
-  if(forstaSteg.boll){
-    ball={x:forstaSteg.boll.x,y:forstaSteg.boll.y};
-  }
-
-  // Koner
-  koner=(forstaSteg.koner||[]).map(k=>({x:k.x,y:k.y,label:k.label||'K'}));
+  // Koner från första steget
+  koner=[];
+  (forstaSteg.koner||[]).forEach(k=>{
+    const platser=KON_PLATSER[k]||[];
+    if(platser.length){
+      const idx=koner.filter(ko=>platser.some(p=>p.x===ko.x&&p.y===ko.y)).length;
+      if(platser[idx])koner.push({x:platser[idx].x,y:platser[idx].y,label:'K'});
+    }
+  });
 
   // Zoner
-  zones=(forstaSteg.zoner||[]).map(z=>({
-    type:z.typ||'rect',
-    ci:z.farg==='red'?1:z.farg==='green'?2:z.farg==='yellow'?3:0,
-    x1:z.x1,y1:z.y1,x2:z.x2,y2:z.y2
-  }));
+  const ZON_KOORDINATER={
+    'backzon':{typ:'rect',ci:0,x1:103,y1:80,x2:280,y2:400},
+    'slott':{typ:'rect',ci:1,x1:607,y1:200,x2:697,y2:280},
+    'mittzon':{typ:'rect',ci:2,x1:300,y1:80,x2:500,y2:400},
+  };
+  zones=(forstaSteg.zoner||[]).map(z=>ZON_KOORDINATER[z]).filter(Boolean);
 
-  // Bygg steg från alla viz-steg
-  steps=viz.steg.map((steg,i)=>{
-    const spelareISteg=steg.spelare||forstaSteg.spelare||[];
+  // Bygg steg
+  steps=viz.steg.map((steg)=>{
+    // Uppdatera bollposition per steg
+    const stepBollRoll=steg.bollhos||bollRoll;
+    const stepBollPos=posMap[stepBollRoll]||bollPos;
+
+    // Bygg pilar från roller till roller
     const pilarISteg=(steg.pilar||[]).map(p=>{
-      const fran=spelareISteg.find(s=>s.id===p.fran)||spelareISteg[0];
-      const till=spelareISteg.find(s=>s.id===p.till);
-      if(!fran)return null;
-      return{
-        type:p.typ==='run'?'run':'arrow',
-        x1:fran.x,y1:fran.y,
-        x2:till?till.x:(fran.x+80),
-        y2:till?till.y:fran.y
-      };
+      const franPos=posMap[p.fran];
+      if(!franPos)return null;
+      let tillX,tillY;
+      if(posMap[p.till]){
+        tillX=posMap[p.till].x;tillY=posMap[p.till].y;
+      }else if(RIKTNING_OFFSET[p.till]){
+        tillX=franPos.x+RIKTNING_OFFSET[p.till].dx;
+        tillY=franPos.y+RIKTNING_OFFSET[p.till].dy;
+      }else{
+        tillX=franPos.x+100;tillY=franPos.y;
+      }
+      return{type:p.typ==='run'?'run':'arrow',x1:franPos.x,y1:franPos.y,x2:tillX,y2:tillY};
     }).filter(Boolean);
 
     return{
       arrows:pilarISteg,
-      players:spelareISteg.map(s=>({team:s.team||'A',x:s.x,y:s.y,label:s.label||s.id})),
-      ball:steg.boll||forstaSteg.boll||{x:400,y:240},
-      zones:(steg.zoner||[]).map(z=>({type:z.typ||'rect',ci:z.farg==='red'?1:0,x1:z.x1,y1:z.y1,x2:z.x2,y2:z.y2}))
+      players:JSON.parse(JSON.stringify(spelareLista)),
+      ball:{x:stepBollPos.x,y:stepBollPos.y},
+      zones:zones
     };
   });
 
   currentStep=0;
   updStepBar();
   draw();
-
-  // Visa info om övningen
-  si(`📋 ${viz.namn||'Övning från CoachCore'} — ${viz.steg.length} steg laddade. Tryck ▶ Spela för att animera.`);
+  si(`📋 ${viz.namn||'Övning från CoachCore'} — ${viz.steg.length} steg · ${spelform} ${formation}`);
   toast(`✓ Laddade: ${viz.namn||'Övning från CoachCore'}`);
 }
 
