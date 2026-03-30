@@ -342,6 +342,8 @@ function draw(mx,my){
   ctx.fillStyle=CO.ba;ctx.beginPath();ctx.arc(ball.x,ball.y,8,0,Math.PI*2);ctx.fill();
   ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=1.5;ctx.stroke();
   if(as){ctx.save();ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(as.x,as.y,22,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  // Rita koner
+  koner.forEach(k=>drawKon(k.x,k.y,k.label));
 }
 
 // Mouse events
@@ -538,12 +540,7 @@ function drawKon(x,y,label){
   ctx.restore();
 }
 
-// Patch draw för att rita koner
-const _origDraw=draw;
-function draw(mx,my){
-  _origDraw(mx,my);
-  koner.forEach(k=>drawKon(k.x,k.y,k.label));
-}
+// Koner ritas direkt i draw()-funktionen
 
 // Ladda övning från CoachCore via URL-parameter
 function laddaFranCoachCore(viz){
