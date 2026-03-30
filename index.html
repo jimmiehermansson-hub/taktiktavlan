@@ -523,6 +523,108 @@ async function delSnap(id,isLocal){
 }
 function closeModal(){document.getElementById('modal').style.display='none';}
 
+// Koner
+let koner=[];
+
+function drawKon(x,y,label){
+  ctx.save();
+  // Yttre cirkel (orange)
+  ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);
+  ctx.fillStyle='#f97316';ctx.fill();
+  ctx.strokeStyle='#ea580c';ctx.lineWidth=1.5;ctx.stroke();
+  // Hål i mitten
+  ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fill();
+  ctx.restore();
+}
+
+// Patch draw för att rita koner
+const _origDraw=draw;
+function draw(mx,my){
+  _origDraw(mx,my);
+  koner.forEach(k=>drawKon(k.x,k.y,k.label));
+}
+
+// Ladda övning från CoachCore via URL-parameter
+function laddaFranCoachCore(viz){
+  if(!viz||!viz.steg||!viz.steg.length)return;
+
+  const forstaSteg=viz.steg[0];
+
+  // Sätt format
+  fmt=viz.format||'4v4';
+
+  // Bygg spelare från steg 1
+  if(forstaSteg.spelare&&forstaSteg.spelare.length){
+    players=forstaSteg.spelare.map(s=>({
+      team:s.team||'A',
+      x:s.x,
+      y:s.y,
+      label:s.label||s.id
+    }));
+  }
+
+  // Sätt boll
+  if(forstaSteg.boll){
+    ball={x:forstaSteg.boll.x,y:forstaSteg.boll.y};
+  }
+
+  // Koner
+  koner=(forstaSteg.koner||[]).map(k=>({x:k.x,y:k.y,label:k.label||'K'}));
+
+  // Zoner
+  zones=(forstaSteg.zoner||[]).map(z=>({
+    type:z.typ||'rect',
+    ci:z.farg==='red'?1:z.farg==='green'?2:z.farg==='yellow'?3:0,
+    x1:z.x1,y1:z.y1,x2:z.x2,y2:z.y2
+  }));
+
+  // Bygg steg från alla viz-steg
+  steps=viz.steg.map((steg,i)=>{
+    const spelareISteg=steg.spelare||forstaSteg.spelare||[];
+    const pilarISteg=(steg.pilar||[]).map(p=>{
+      const fran=spelareISteg.find(s=>s.id===p.fran)||spelareISteg[0];
+      const till=spelareISteg.find(s=>s.id===p.till);
+      if(!fran)return null;
+      return{
+        type:p.typ==='run'?'run':'arrow',
+        x1:fran.x,y1:fran.y,
+        x2:till?till.x:(fran.x+80),
+        y2:till?till.y:fran.y
+      };
+    }).filter(Boolean);
+
+    return{
+      arrows:pilarISteg,
+      players:spelareISteg.map(s=>({team:s.team||'A',x:s.x,y:s.y,label:s.label||s.id})),
+      ball:steg.boll||forstaSteg.boll||{x:400,y:240},
+      zones:(steg.zoner||[]).map(z=>({type:z.typ||'rect',ci:z.farg==='red'?1:0,x1:z.x1,y1:z.y1,x2:z.x2,y2:z.y2}))
+    };
+  });
+
+  currentStep=0;
+  updStepBar();
+  draw();
+
+  // Visa info om övningen
+  si(`📋 ${viz.namn||'Övning från CoachCore'} — ${viz.steg.length} steg laddade. Tryck ▶ Spela för att animera.`);
+  toast(`✓ Laddade: ${viz.namn||'Övning från CoachCore'}`);
+}
+
+// Kolla URL-parameter vid start
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  const ovningParam=params.get('ovning');
+  if(ovningParam){
+    try{
+      const json=JSON.parse(decodeURIComponent(escape(atob(ovningParam))));
+      setTimeout(()=>laddaFranCoachCore(json),100);
+    }catch(e){
+      console.error('Kunde inte ladda övning från URL:',e);
+    }
+  }
+})();
+
 // Init
 players=mkP('4v4');
 steps[0].players=JSON.parse(JSON.stringify(players));
